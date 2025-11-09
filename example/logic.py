@@ -1,6 +1,6 @@
-def confirm(button):
-    print("Woah!")
+def nameSubmit(widget):
+    app.nameLabel.set_text(f"Hello, {app.nameEntry.get_text()}!")
 
-def cancel(button):
+def cancel(widget):
     import sys
     sys.exit(0)

@@ -16,32 +16,81 @@ def error(message):
     print(f"[gtkML:ERROR] {message}")
 
 class gtkMLApp:
-    def __init__(self, markup_path, logic_path):
+    def __getattr__(self, name):
+        for key, widget in self.widgets.items():
+            if key.lower() == name.lower():
+                return widget
+
+        if name.startswith("Gtk_"):
+            return getattr(Gtk, name[4:], None)
+        if name.startswith("Gdk_"):
+            return getattr(Gdk, name[4:], None)
+
+        if self.window and hasattr(self.window, name):
+            return getattr(self.window, name)
+
+        def missing(*args, **kwargs):
+            warn(f"Attempted to call unknown function or attribute: {name} (args={args}, kwargs={kwargs})")
+            return None
+        return missing
+    
+    def __init__(self, markup_path, logic_path=None):
+        self.window = None
         self.widgets = {}
         self.app_info = {}
-        self.logic = self.load_logic_module(logic_path)
-        self.window = None
-        self.root = self.parse_markup(markup_path)
+        self.logic = None
 
+        self.root = self.parse_markup(markup_path)
         self.app = Gtk.Application(application_id="com.example.gtkm")
         self.app.connect("activate", self.on_activate)
+
+        if logic_path:
+            self.logic = self.load_logic_module(logic_path)
 
     def load_logic_module(self, path):
         spec = importlib.util.spec_from_file_location("logic_module", path)
         module = importlib.util.module_from_spec(spec)
+
+        import gi
+        gi.require_version("Gtk", "4.0")
+        gi.require_version("Gio", "2.0")
+        gi.require_version("Gdk", "4.0")
+        gi.require_version("GdkPixbuf", "2.0")
+
+        from gi.repository import Gtk, Gio, Gdk, GdkPixbuf
+
+        module.Gtk = Gtk
+        module.Gio = Gio
+        module.Gdk = Gdk
+        module.GdkPixbuf = GdkPixbuf
+
         sys.modules["logic_module"] = module
         spec.loader.exec_module(module)
+
+        module.app = self
         return module
 
     def parse_markup(self, file_path):
         tree = ET.parse(file_path)
         root = tree.getroot()
 
-        for child in tree.iter():
-            if child.tag.lower() == "head":
+        logic_path = None
+
+        for child in list(tree.iter()):
+            tag = child.tag.lower()
+
+            if tag == "head":
                 for meta in child:
                     self.app_info[meta.tag.lower()] = (meta.text or "").strip()
+
+            elif tag == "script" and "src" in child.attrib:
+                logic_path = child.attrib["src"]
+
+        if logic_path:
+            self.logic = self.load_logic_module(logic_path)
+
         return root
+
 
     def load_css(self, css_path):
         try:
@@ -56,6 +105,9 @@ class gtkMLApp:
             warn(f"[Warning] Could not load CSS '{css_path}': {e}")
 
     def build_ui(self):
+        if self.logic:
+            setattr(self.logic, "app", self)
+
         if self.root.tag.lower() == "gtkm":
             window_elem = next((child for child in self.root if child.tag.lower() == "window"), None)
         else:
@@ -187,17 +239,15 @@ class gtkMLApp:
                 func_name = element.attrib["onclick"]
                 handler = getattr(self.logic, func_name, None)
                 if callable(handler):
-                    widget.connect("clicked", handler)
+                    widget.connect("clicked", lambda w: handler(w))
                 else:
                     warn(f"No such handler in logic.py: {func_name}")
-
-        elif tag == "span":
+        elif tag == "label":
             widget = Gtk.Label(label=(element.text or "").strip())
 
         elif tag == "entry":
             widget = Gtk.Entry()
             widget.set_placeholder_text((element.text or "").strip())
-
         elif tag == "vbox":
             widget = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
             if "spacing" in element.attrib:
@@ -206,7 +256,6 @@ class gtkMLApp:
                 child_widget = self.create_widget(child)
                 if child_widget:
                     widget.append(child_widget)
-
         elif tag == "hbox":
             widget = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL)
             if "spacing" in element.attrib:
@@ -215,10 +264,14 @@ class gtkMLApp:
                 child_widget = self.create_widget(child)
                 if child_widget:
                     widget.append(child_widget)
-
+        elif tag == "script":
+            "Already handled in __init__"
         else:
             warn(f"Unknown tag: <{tag}>")
             return None
+        
+        if widget and "id" in element.attrib:
+            self.widgets[element.attrib["id"]] = widget
 
         if widget:
             self.apply_common_properties(widget, element.attrib)
@@ -253,11 +306,13 @@ class gtkMLApp:
         app.add_window(win)
         win.present()
 
-    def run(self):
-        css_path = self.app_info.get("css") or "style.css"
-        self.load_css(css_path)
+    def run(self, css_path=None):
+        css_path = css_path or self.app_info.get("css")
+        if css_path:
+            self.load_css(css_path)
         self.app.run(None)
 
+
 if __name__ == "__main__":
-    app = gtkMLApp("ui.gtkm", "logic.py")
+    app = gtkMLApp("ui.gtkm")
     app.run()

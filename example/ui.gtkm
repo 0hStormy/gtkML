@@ -7,19 +7,17 @@
         <website>https://0stormy.xyz</website>
         <comments>gtkML demo application.</comments>
         <icon>assets/icon_dark.svg</icon>
-        <css>style.css</css>
     </head>
     <window title="gtkML Demo">
-        <headerbar>
-            <menu include="default"/>
-        </headerbar>
-        <vbox spacing="12" margin="16" class="main">
-            <entry placeholder="Type something..." />
+        <label margin="8" hexpand="true">What's your name?</label>
+        <vbox spacing="8" margin="8" class="main">
+            <entry id="nameEntry" placeholder="Type something..." />
             <hbox spacing="6" halign="end">
-            <button onclick="cancel">Cancel</button>
-            <button class="suggested-action" onclick="confirm">OK</button>
+            <button onclick="cancel">Quit</button>
+            <button class="suggested-action" onclick="nameSubmit">OK</button>
             </hbox>
         </vbox>
-        <span vexpand="true">Example Span</span>
+        <label id="nameLabel" vexpand="true">Hello, friend!</label>
+        <script src="logic.py"/>
     </window>
 </gtkm>
