@@ -1,6 +1,7 @@
 import xml.etree.ElementTree as ET
 import importlib.util
 import sys
+import os
 import gi
 gi.require_version("Gtk", "4.0")
 gi.require_version("GdkPixbuf", "2.0")
@@ -182,10 +183,10 @@ class gtkMLApp:
     def apply_common_properties(self, widget, attrib):
         margin_map = {
             "margin": ("top", "bottom", "start", "end"),
-            "margin_top": ("top",),
-            "margin_bottom": ("bottom",),
-            "margin_start": ("start",),
-            "margin_end": ("end",),
+            "margin-top": ("top",),
+            "margin-bottom": ("bottom",),
+            "margin-start": ("start",),
+            "margin-end": ("end",),
         }
 
         for key, sides in margin_map.items():
@@ -205,8 +206,6 @@ class gtkMLApp:
             widget.set_halign(align_map.get(attrib["halign"].lower(), Gtk.Align.FILL))
         if "valign" in attrib:
             widget.set_valign(align_map.get(attrib["valign"].lower(), Gtk.Align.FILL))
-
-        # --- Expand / Hexpand / Vexpand ---
         if "expand" in attrib:
             expand = attrib["expand"].lower() in ("1", "true", "yes")
             widget.set_hexpand(expand)
@@ -233,8 +232,6 @@ class gtkMLApp:
 
         if tag == "button":
             widget = Gtk.Button(label=(element.text or "").strip())
-            if "id" in element.attrib:
-                self.widgets[element.attrib["id"]] = widget
             if "onclick" in element.attrib:
                 func_name = element.attrib["onclick"]
                 handler = getattr(self.logic, func_name, None)
@@ -242,38 +239,90 @@ class gtkMLApp:
                     widget.connect("clicked", lambda w: handler(w))
                 else:
                     warn(f"No such handler in logic.py: {func_name}")
+
         elif tag == "label":
             widget = Gtk.Label(label=(element.text or "").strip())
 
         elif tag == "entry":
             widget = Gtk.Entry()
-            widget.set_placeholder_text((element.text or "").strip())
-        elif tag == "vbox":
-            widget = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
-            if "spacing" in element.attrib:
-                widget.set_spacing(int(element.attrib["spacing"]))
+            if element.text:
+                widget.set_placeholder_text(element.text.strip())
+
+        elif tag in ("vbox", "hbox"):
+            orientation = (
+                Gtk.Orientation.VERTICAL
+                if tag == "vbox"
+                else Gtk.Orientation.HORIZONTAL
+            )
+            widget = Gtk.Box(orientation=orientation)
+            spacing = element.attrib.get("spacing")
+            if spacing:
+                widget.set_spacing(int(spacing))
             for child in element:
                 child_widget = self.create_widget(child)
                 if child_widget:
                     widget.append(child_widget)
-        elif tag == "hbox":
-            widget = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL)
-            if "spacing" in element.attrib:
-                widget.set_spacing(int(element.attrib["spacing"]))
-            for child in element:
-                child_widget = self.create_widget(child)
-                if child_widget:
-                    widget.append(child_widget)
+
+        elif tag == "frame":
+            label = element.attrib.get("label")
+            widget = Gtk.Frame(label=label)
+
+            children = [self.create_widget(child) for child in element if self.create_widget(child)]
+            children = [c for c in children if c is not None]
+
+            if len(children) == 1:
+                # Single child — just set it directly
+                child_widget = children[0]
+                if isinstance(child_widget, (Gtk.Image, Gtk.Label)):
+                    child_widget.set_halign(Gtk.Align.CENTER)
+                    child_widget.set_valign(Gtk.Align.CENTER)
+                    child_widget.set_hexpand(True)
+                    child_widget.set_vexpand(True)
+                widget.set_child(child_widget)
+            elif len(children) > 1:
+                # Multiple children → wrap in a VBox automatically
+                box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6)
+                for child_widget in children:
+                    box.append(child_widget)
+                widget.set_child(box)
+
+        elif tag == "img":
+            src = element.attrib.get("src")
+            icon = element.attrib.get("icon")
+            size = int(element.attrib.get("size", "64"))
+
+            if src:
+                base_dir = os.path.dirname(os.path.abspath(sys.argv[1])) if len(sys.argv) > 1 else os.getcwd()
+                resolved_path = os.path.join(base_dir, src)
+
+                if not os.path.exists(resolved_path):
+                    warn(f"Image file not found: {resolved_path}")
+                    widget = Gtk.Image.new()
+                else:
+                    try:
+                        texture = Gdk.Texture.new_from_filename(resolved_path)
+                        widget = Gtk.Image.new_from_paintable(texture)
+                    except Exception as e:
+                        warn(f"Failed to load image '{resolved_path}': {e}")
+                        widget = Gtk.Image.new()
+            elif icon:
+                widget = Gtk.Image.new_from_icon_name(icon)
+            else:
+                widget = Gtk.Image.new()
+
+            if size > 0:
+                widget.set_pixel_size(size)
+
         elif tag == "script":
-            "Already handled in __init__"
+            return None
+
         else:
             warn(f"Unknown tag: <{tag}>")
             return None
-        
-        if widget and "id" in element.attrib:
-            self.widgets[element.attrib["id"]] = widget
 
         if widget:
+            if "id" in element.attrib:
+                self.widgets[element.attrib["id"]] = widget
             self.apply_common_properties(widget, element.attrib)
 
         return widget

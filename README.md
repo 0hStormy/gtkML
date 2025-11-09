@@ -3,7 +3,7 @@ A GTK 4 runtime that uses an HTML-like XML language along with CSS for style and
 
 ### Current Widget Set:
 
-8/57 implemented (14%)
+10/57 implemented (14%)
 
 * [x] Widget
 * [x] Window
@@ -16,7 +16,7 @@ A GTK 4 runtime that uses an HTML-like XML language along with CSS for style and
 * [ ] ListView
 * [ ] ColumnView
 * [ ] GridView
-* [ ] Frame
+* [x] Frame
 * [ ] AspectFrame
 * [x] HeaderBar
 * [x] Button
@@ -29,7 +29,7 @@ A GTK 4 runtime that uses an HTML-like XML language along with CSS for style and
 * [x] Label
 * [ ] TextView
 * [ ] DrawingArea
-* [ ] Image
+* [x] Image (SVGs need work)
 * [ ] IconView *(deprecated in GTK4.10+)*
 * [ ] ComboBox *(deprecated in GTK4.10+)*
 * [ ] DropDown
