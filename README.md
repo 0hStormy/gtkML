@@ -3,7 +3,7 @@ A GTK 4 runtime that uses an HTML-like XML language along with CSS for style and
 
 ### Current Widget Set:
 
-10/57 implemented (14%)
+10/57 implemented (17%)
 
 * [x] Widget
 * [x] Window
