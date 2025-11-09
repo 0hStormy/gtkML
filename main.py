@@ -1,11 +1,19 @@
 import xml.etree.ElementTree as ET
 import importlib.util
 import sys
-import log
 import gi
 gi.require_version("Gtk", "4.0")
 gi.require_version("GdkPixbuf", "2.0")
 from gi.repository import Gtk, Gio, Gdk, GdkPixbuf  # noqa: E402
+
+def log(message):
+    print(f"[gtkML:LOG] {message}")
+
+def warn(message):
+    print(f"[gtkML:WARN] {message}")
+
+def error(message):
+    print(f"[gtkML:ERROR] {message}")
 
 class gtkMLApp:
     def __init__(self, markup_path, logic_path):
@@ -43,9 +51,9 @@ class gtkMLApp:
             Gtk.StyleContext.add_provider_for_display(
                 display, provider, Gtk.STYLE_PROVIDER_PRIORITY_USER
             )
-            log.log(f"Loaded CSS: {css_path}")
+            log(f"Loaded CSS: {css_path}")
         except Exception as e:
-            log.warn(f"[Warning] Could not load CSS '{css_path}': {e}")
+            warn(f"[Warning] Could not load CSS '{css_path}': {e}")
 
     def build_ui(self):
         if self.root.tag.lower() == "gtkm":
@@ -181,7 +189,7 @@ class gtkMLApp:
                 if callable(handler):
                     widget.connect("clicked", handler)
                 else:
-                    log.warn(f"No such handler in logic.py: {func_name}")
+                    warn(f"No such handler in logic.py: {func_name}")
 
         elif tag == "span":
             widget = Gtk.Label(label=(element.text or "").strip())
@@ -209,7 +217,7 @@ class gtkMLApp:
                     widget.append(child_widget)
 
         else:
-            log.warn(f"Unknown tag: <{tag}>")
+            warn(f"Unknown tag: <{tag}>")
             return None
 
         if widget:
@@ -236,7 +244,7 @@ class gtkMLApp:
                 texture = Gdk.Texture.new_for_pixbuf(pixbuf)
                 dialog.set_logo(texture)
             except Exception as e:
-                log.warn(f"Could not load icon '{icon_path}': {e}")
+                warn(f"Could not load icon '{icon_path}': {e}")
 
         dialog.present()
 
