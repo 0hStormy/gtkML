@@ -1,0 +1,25 @@
+<!DOCTYPE gtkm>
+<gtkm>
+    <head>
+        <program_name>gtkML Demo</program_name>
+        <version>1.0</version>
+        <authors>Stormy</authors>
+        <website>https://0stormy.xyz</website>
+        <comments>gtkML demo application.</comments>
+        <icon>assets/icon_dark.svg</icon>
+        <css>style.css</css>
+    </head>
+    <window title="gtkML Demo">
+        <headerbar>
+            <menu include="default"/>
+        </headerbar>
+        <vbox spacing="12" margin="16" class="main">
+            <entry placeholder="Type something..." />
+            <hbox spacing="6" halign="end">
+            <button onclick="cancel">Cancel</button>
+            <button class="suggested-action" onclick="confirm">OK</button>
+            </hbox>
+        </vbox>
+        <span vexpand="true">Example Span</span>
+    </window>
+</gtkm>

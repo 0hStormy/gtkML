@@ -1,0 +1,14 @@
+.main {
+  background: @theme_base_color;
+  padding: 8px;
+}
+
+.title {
+  font-size: 18px;
+  font-weight: bold;
+}
+
+.suggested-action {
+  background-color: @theme_selected_bg_color;
+  color: white;
+}
