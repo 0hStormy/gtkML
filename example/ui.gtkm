@@ -10,6 +10,9 @@
         <css>style.css</css>
     </head>
     <window title="gtkML Demo">
+        <headerbar>
+            <menu include="default"/>
+        </headerbar>
         <hbox halign="center" margin="8">
             <label margin="16">What's your name?</label>
         </hbox>
