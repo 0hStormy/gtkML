@@ -1,6 +1,10 @@
 <img width="100%" src="assets/readme.svg">
 A GTK 4 runtime that uses an HTML-like XML language along with CSS for style and Python for logic.
 
+### Example Program
+
+<img width="100%" src="assets/example.png">
+
 ### Current Widget Set:
 
 14/59 implemented (28%)
