@@ -215,7 +215,8 @@ class gtkMLApp:
             widget.set_hexpand(attrib["hexpand"].lower() in ("1", "true", "yes"))
         if "vexpand" in attrib:
             widget.set_vexpand(attrib["vexpand"].lower() in ("1", "true", "yes"))
-
+        if "disabled" in attrib:
+            widget.set_sensitive(False)
         if "class" in attrib:
             class_list = attrib["class"].split()
             for cls in class_list:
@@ -224,6 +225,10 @@ class gtkMLApp:
             class_list = attrib["classes"].split()
             for cls in class_list:
                 widget.get_style_context().add_class(cls)
+        if "id" in attrib:
+            wid = attrib["id"]
+            self.widgets[wid] = widget
+            setattr(self, wid, widget)
 
 
     def create_widget(self, element):
@@ -231,17 +236,96 @@ class gtkMLApp:
         widget = None
 
         if tag == "button":
-            widget = Gtk.Button(label=(element.text or "").strip())
+            label = (element.text or "").strip()
+            button_type = element.attrib.get("type", "normal").lower()
+
+            if button_type == "toggle":
+                widget = Gtk.ToggleButton(label=label)
+            elif button_type == "link":
+                uri = element.attrib.get("href", "#")
+                widget = Gtk.LinkButton(uri=uri, label=label)
+            else:
+                widget = Gtk.Button(label=label)
+
             if "onclick" in element.attrib:
+                func_name = element.attrib["onclick"]
+                handler = getattr(self.logic, func_name, None) if hasattr(self, "logic") else None
+                if handler is None:
+                    import logic
+                    handler = getattr(logic, func_name, None)
+
+                if callable(handler):
+                    widget.connect("clicked", lambda w: handler(w))
+                else:
+                    warn(f"No such handler in logic.py: {func_name}")
+        
+        elif tag == "checkbox":
+            label = element.attrib.get("label", "").strip()
+            active = element.attrib.get("active", "false").lower() in ("1", "true", "yes")
+            widget = Gtk.CheckButton(label=label)
+            widget.set_active(active)
+            if "onclick" in element.attrib and self.logic:
                 func_name = element.attrib["onclick"]
                 handler = getattr(self.logic, func_name, None)
                 if callable(handler):
-                    widget.connect("clicked", lambda w: handler(w))
+                    widget.connect("toggled", lambda w: handler(w, w.get_active()))
+                else:
+                    warn(f"No such handler in logic.py: {func_name}")
+
+        elif tag == "switch":
+            active = element.attrib.get("active", "false").lower() in ("1", "true", "yes")
+            label = element.attrib.get("label")
+
+            if label:
+                hbox = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
+                lbl = Gtk.Label(label=label)
+                lbl.set_halign(Gtk.Align.START)
+                hbox.append(lbl)
+                sw = Gtk.Switch()
+                sw.set_active(active)
+                hbox.append(sw)
+                widget = hbox
+                widget._inner_switch = sw
+            else:
+                sw = Gtk.Switch()
+                sw.set_active(active)
+                widget = sw
+
+            if "onclick" in element.attrib and self.logic:
+                func_name = element.attrib["onclick"]
+                handler = getattr(self.logic, func_name, None)
+                if callable(handler):
+                    sw.connect("state-set", lambda w, state: handler(w, state))
                 else:
                     warn(f"No such handler in logic.py: {func_name}")
 
         elif tag == "label":
             widget = Gtk.Label(label=(element.text or "").strip())
+
+        elif tag == "textview":
+            textview = Gtk.TextView()
+            buffer = textview.get_buffer()
+            if element.text and element.text.strip():
+                buffer.set_text(element.text.strip())
+            widget = textview
+
+        elif tag == "scroll":
+            scroll = Gtk.ScrolledWindow()
+            scroll.set_policy(Gtk.PolicyType.AUTOMATIC, Gtk.PolicyType.AUTOMATIC)
+            for attr, value in element.attrib.items():
+                if attr.startswith("margin"):
+                    self.apply_margin(scroll, attr, value)
+                elif attr == "class":
+                    for cls in value.split():
+                        scroll.get_style_context().add_class(cls)
+
+            for child in element:
+                child_widget = self.create_widget(child)
+                if child_widget:
+                    scroll.set_child(child_widget)
+                    break
+
+            widget = scroll
 
         elif tag == "entry":
             widget = Gtk.Entry()
@@ -271,7 +355,6 @@ class gtkMLApp:
             children = [c for c in children if c is not None]
 
             if len(children) == 1:
-                # Single child — just set it directly
                 child_widget = children[0]
                 if isinstance(child_widget, (Gtk.Image, Gtk.Label)):
                     child_widget.set_halign(Gtk.Align.CENTER)
@@ -280,38 +363,118 @@ class gtkMLApp:
                     child_widget.set_vexpand(True)
                 widget.set_child(child_widget)
             elif len(children) > 1:
-                # Multiple children → wrap in a VBox automatically
                 box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6)
                 for child_widget in children:
                     box.append(child_widget)
                 widget.set_child(box)
 
-        elif tag == "img":
+        elif tag in ("img", "image"):
             src = element.attrib.get("src")
-            icon = element.attrib.get("icon")
-            size = int(element.attrib.get("size", "64"))
+            width = element.attrib.get("width")
+            height = element.attrib.get("height")
+            size = element.attrib.get("size")
 
-            if src:
-                base_dir = os.path.dirname(os.path.abspath(sys.argv[1])) if len(sys.argv) > 1 else os.getcwd()
-                resolved_path = os.path.join(base_dir, src)
-
-                if not os.path.exists(resolved_path):
-                    warn(f"Image file not found: {resolved_path}")
-                    widget = Gtk.Image.new()
-                else:
-                    try:
-                        texture = Gdk.Texture.new_from_filename(resolved_path)
-                        widget = Gtk.Image.new_from_paintable(texture)
-                    except Exception as e:
-                        warn(f"Failed to load image '{resolved_path}': {e}")
-                        widget = Gtk.Image.new()
-            elif icon:
-                widget = Gtk.Image.new_from_icon_name(icon)
-            else:
+            if not src:
+                warn("<img> tag missing src attribute.")
                 widget = Gtk.Image.new()
+            else:
+                try:
+                    base_dir = os.path.dirname(os.path.abspath(sys.argv[1])) if len(sys.argv) > 1 else os.getcwd()
+                    resolved_path = os.path.normpath(os.path.join(base_dir, src))
+                    target_w = target_h = None
+                    if size:
+                        try:
+                            target_w = target_h = int(size)
+                        except Exception:
+                            target_w = target_h = None
+                    else:
+                        if width:
+                            try:
+                                target_w = int(width)
+                            except Exception:
+                                target_w = None
+                        if height:
+                            try:
+                                target_h = int(height)
+                            except Exception:
+                                target_h = None
+                    orig_pb = None
+                    try:
+                        orig_pb = GdkPixbuf.Pixbuf.new_from_file(resolved_path)
+                        orig_w = orig_pb.get_width()
+                        orig_h = orig_pb.get_height()
+                    except Exception:
+                        orig_pb = None
+                        orig_w = orig_h = None
 
-            if size > 0:
-                widget.set_pixel_size(size)
+                    if target_w and not target_h and orig_w and orig_h:
+                        target_h = int(target_w * (orig_h / orig_w))
+                    elif target_h and not target_w and orig_w and orig_h:
+                        target_w = int(target_h * (orig_w / orig_h))
+
+                    if target_w and target_h:
+                        try:
+                            scaled_pb = GdkPixbuf.Pixbuf.new_from_file_at_size(resolved_path, target_w, target_h)
+                        except Exception:
+                            if orig_pb:
+                                scaled_pb = orig_pb.scale_simple(target_w, target_h, GdkPixbuf.InterpType.BILINEAR)
+                            else:
+                                scaled_pb = None
+
+                        if scaled_pb:
+                            try:
+                                texture = Gdk.Texture.new_for_pixbuf(scaled_pb)
+                                pic = Gtk.Picture()
+                                pic.set_paintable(texture)
+                                pic.set_size_request(target_w, target_h)
+                                pic.set_content_fit(Gtk.ContentFit.CONTAIN)
+                                pic.set_halign(Gtk.Align.CENTER)
+                                pic.set_valign(Gtk.Align.CENTER)
+                                widget = pic
+                            except Exception:
+                                widget = Gtk.Image.new_from_pixbuf(scaled_pb)
+                        else:
+                            try:
+                                texture = Gdk.Texture.new_from_filename(resolved_path)
+                                pic = Gtk.Picture()
+                                pic.set_paintable(texture)
+                                pic.set_size_request(target_w, target_h)
+                                widget = pic
+                            except Exception:
+                                warn(f"Could not load image '{resolved_path}' (scaled fallback).")
+                                widget = Gtk.Image.new()
+                    else:
+                        try:
+                            texture = Gdk.Texture.new_from_filename(resolved_path)
+                            pic = Gtk.Picture()
+                            pic.set_paintable(texture)
+                            pic.set_content_fit(Gtk.ContentFit.CONTAIN)
+                            widget = pic
+                        except Exception:
+                            try:
+                                widget = Gtk.Image.new_from_file(resolved_path)
+                            except Exception as e:
+                                warn(f"Could not load image '{resolved_path}': {e}")
+                                widget = Gtk.Image.new()
+                except Exception as e:
+                    warn(f"Could not load image '{src}': {e}")
+                    widget = Gtk.Image.new()
+
+            if widget:
+                self.apply_common_properties(widget, element.attrib)
+
+        elif tag == "notebook":
+            widget = Gtk.Notebook()
+            for tab_elem in element.findall("tab"):
+                label = tab_elem.attrib.get("label", "Tab")
+
+                vbox = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6)
+                for child in tab_elem:
+                    child_widget = self.create_widget(child)
+                    if child_widget:
+                        vbox.append(child_widget)
+
+                widget.append_page(vbox, Gtk.Label(label=label))
 
         elif tag == "script":
             return None
@@ -321,8 +484,6 @@ class gtkMLApp:
             return None
 
         if widget:
-            if "id" in element.attrib:
-                self.widgets[element.attrib["id"]] = widget
             self.apply_common_properties(widget, element.attrib)
 
         return widget
