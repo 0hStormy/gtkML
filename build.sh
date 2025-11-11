@@ -18,7 +18,6 @@ source "$VENV_DIR/bin/activate"
 pip install --upgrade pip setuptools wheel
 pip install nuitka pycairo PyGObject
 
-# Force Nuitka to respect --include-data-dir for .py files
 export NUITKA_FORCE_DATA_FILES=1
 
 DATA_ARGS=""
@@ -38,17 +37,20 @@ add_dir_recursive "$BASE_DIR/widgets" "widgets"
 add_dir_recursive "$BASE_DIR/assets" "assets"
 add_dir_recursive "$BASE_DIR/example" "example"
 
-python3 -m nuitka \
+NUITKA_OPTIMIZATION_LEVEL=3 python3 -m nuitka \
     --onefile \
     --follow-imports \
     --remove-output \
+    --lto=no \
+    --no-pyi-file \
+    --python-flag=no_docstrings \
+    --assume-yes-for-downloads \
+    --nofollow-import-to=tests,unittest \
+    --noinclude-default-mode=error \
     --output-dir="$OUTPUT_DIR" \
     --output-filename="$APP_NAME" \
     $DATA_ARGS \
     "$ENTRY"
-
-# Cleanup temp copy
-rm -rf "$BASE_DIR/_widgets_data"
 
 echo
 echo "Build complete: $OUTPUT_DIR/$APP_NAME"
