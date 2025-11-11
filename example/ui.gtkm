@@ -6,7 +6,7 @@
         <authors>Stormy</authors>
         <website>https://0stormy.xyz</website>
         <comments>gtkML demo application.</comments>
-        <icon>assets/icon_dark.svg</icon>
+        <icon>icon_dark.svg</icon>
         <css>style.css</css>
     </head>
     <window title="gtkML Demo">
@@ -16,7 +16,7 @@
             <menu include="default"/>
         </headerbar>
         <vbox margin="16" vexpand="false" spacing="16" halign="center">
-            <img src="assets/readme.svg" width="256"/>
+            <img src="logo.svg" width="256"/>
             <label>A GTK 4 runtime that uses an HTML-like XML language along with CSS for style and Python for logic.</label>
         </vbox>
 

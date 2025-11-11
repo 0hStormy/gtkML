@@ -71,4 +71,6 @@ A GTK 4 runtime that uses an HTML-like XML language along with CSS for style and
 
 ### How to use
 
-Currently you just move the `main.py` file into your app folder and build off the example program in the repo.
+1. Make sure you have `python3`, `gtk4`, and `pip` installed (You probably do if on Linux)
+2. Run `build.sh`
+3. Run the binary made from the script.

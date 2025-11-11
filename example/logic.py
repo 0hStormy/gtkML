@@ -6,7 +6,12 @@ def cancel(widget):
     sys.exit(0)
 
 def showSource(widget):
-    with open("ui.gtkm", "r") as f:
-        sourceCode = f.read()
+    try:
+        with open(app.ui_path, "r", encoding="utf-8") as f:
+            sourceCode = f.read()
+        buffer = app.sourceTextView.get_buffer()
+        buffer.set_text(sourceCode)
+    except Exception as e:
+        app.warn(f"Could not open source file: {e}")
     buffer = app.sourceTextView.get_buffer()
     buffer.set_text(sourceCode)

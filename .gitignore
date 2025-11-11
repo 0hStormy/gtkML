@@ -1,1 +1,6 @@
 /__pycache__
+widgets/__pycache__
+example/__pycache__
+
+/dist
+/.venv
